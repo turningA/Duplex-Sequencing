@@ -2,156 +2,84 @@ Duplex-Sequencing
 =================
 README
 
-These programs are meant to be run in order, and result in the transformation of two input .FASTQ files containing data from two reads of an Ilumina sequencing run (or another next-generation sequencer) into a paired-end BAM file containing duplex concensus sequences (DCS).  They will also generate a file containing each different tag present, and how many times it occured, as well as a file, called extraConsensus.bam containing single strand concensus sequences (SSCSs) that, for one reason or another, didn't have a mate (This is possible even if all reads origionaly had mates if the mate had too few or too many reads).  
+** Duplex Sequencing software package **
+** Version 1.21 **
+** February 5, 2013 **
+** Programs by Scott Kennedy and Mike Schmitt **
+** Several steps are based on prior work by Joe Hiatt **
 
-New in this version:
-Ability to run paired-end files
-Choose which reads to make consensuses with  (dual_map v. mono_map)
-Filter for 'good' reads
-Filter for 'good' SSCS's (not too many N's)
-Filter for most common cigar string
-Filter out reads with soft-clipping
-Customizable file names
-Bash script writing program
+1. DEPENDENCIES
 
-Required packages/programs
-BWA (written with V 0.6.2)
-Samtools (written with V 0.1.17)
-Python (written with V 2.7.3)
-Pysam (written with V 0.7.5)
-BioPython (written with V 1.62)
+samtools and pysam MUST be installed on your computer for the scripts to work.
 
-Instructions: 
+http://http://samtools.sourceforge.net/
+http://code.google.com/p/pysam/
 
-First, run PE_BASH_MAKER.py, then make the bash script (.sh file) exicutable using the command below.  
+2. REQUIRED PATHS
 
-chmod +x PE_DCS_CALC.*.*.sh
+Set the DCSPATH and REFPATH variables to point to the locations of your DCS programs, and reference files, respectively.
 
-Run the bash script.  This should run the rest of the process through to an output paired-end BAM file.  It is strongly sugested that the final sorted BAM file undergo post-processing with picard-tools-1.70/AddOrReplaceReadGroups.jar and GATK/GenomeAnalysisTK.jar, before generating statistics.  Do not run the bash script in a folder containing pre-existing SAM files, as it will delete them.  
+--Use your favorite text editor (e.g. nano) to open the .bash_profile file in your home directory and add the following lines (this assumes that you are putting the DCS folder in your root directory. Change the path as needed):
 
-Inputs:
-	read-1-raw-data.fq
-	read-2-raw-data.fq
+DCSPATH= /DCS/programs; export DCSPATH
+REFPATH = /DCS/reference; export REFPATH
 
-Outputs:
-	SSCS-output-file.bam
-		PE SSCSs
+--Save the file and close the editor.
+--Run the following command:
 
-	DCS-output-file.bam
-		PE DCSs
+source $HOME/.bash_profile
 
-	tag-counts-file.tagcounts
-		Number of members in each group, regardless of weather or not a SSCS was created from that group.
+3. USAGE
 
-	SSCS-output-file_UP.bam
-		SSCSs that didn't have a mate
-	
-	SSCS-output-file_NM.bam
-		Reads that were not even considered
-	
-	SSCS-output-file_LCC.bam
-		Reads that had a less common cigar string than the one used for SSCS generation
+--Run the dcs-script.txt file from the directory containing your fastq files. The fastq files must be named seq1.fq and seq2.fq  Recommended command-line usage:
 
-	DCS-output-file_UP.bam
-		DCSs for which the switchtag resulted in too many N's.  
-	
+dcs-script.txt 2> dcs-script.se
 
-PE_BASH_MAKER.py
+--The file dcs-script-parallel.txt can also be used. This version processes the read 1 and read 2 files simultaneously. It is faster but requires more memory (minimum 16 GB recommended).
 
-This program makes a shell script so that the user will not need to enter the commands for all the programs himself.  When using it, navigate to the folder with your data, with all the programs in a different folder, and enter a relative path to that folder from the folder with your data.  This way, the program will be able to auto-build the path to the programs.  
+Recommended command-line usage:
 
-usage: PE_BASH_MAKER.py [-h] [--ref REF] [--r1src R1SRC] [--r2src R2SRC]
-                        [--min MINMEM] [--max MAXMEM] [--cut CUTOFF]
-                        [--Ncut NCUT] [--rlength RLENGTH]
-                        [--read_type READ_TYPE] [--spacers SPACERS]
-                        [--slength SLENGTH] [--blength BLENGTH]
-                        [--plengths PLENGTHS]
+dcs-script-parallel.txt 2> dcs-script-parallel.se
 
-arguments:
-  -h, --help            show this help message and exit
-  --ref REF             .FASTA file containing the reference genome
-  --r1src R1SRC         .fq file containing the raw read1 data
-  --r2src R2SRC         .fq file containing the raw read2 data
-  --min MINMEM          Minimum members for SSCS consensus [3]
-  --max MAXMEM          Maximum members for SSCS consensus[1000]
-  --cut CUTOFF          Mimimum percent matching for base choice in SSCS
-                        consensus [0.8]
-  --Ncut NCUT           Maxumum percent N's allowed [0.1]
-  --rlength RLENGTH     Length of a single read [80]
-  --read_type READ_TYPE
-                        Type of read. Options: 
-							dual_map: both reads map propperly. Doesn't consider read pairs where only one maps. 
-							mono_map: considers any read pair where one read maps. 
-							[dual_map]
+4. DATA OUTPUT
 
-ConsensusMaker2.2.py
+--BAM file consisting of DCS reads: seq_both_DCS.bam
+--BAM file consisting of SSCS reads: seq_both_sscs.bam
 
-Consensus Maker
-Version 2.2
-By Brendan Kohrn and Scott Kennedy(1)
-(1) Department of Pathology, University of Washington School of Medicine, Seattle, WA 98195
-August 29, 2013
+***note that these SSCS reads are all aligned relative to the reference genome, and have thus been reverse-complemented when necessary by the aligner. Thus these SSCS reads do NOT inform whether there is a strand bias due to DNA damage. Doing so requires looking at forward-mapping and reverse-mapping reads separately after the initial alignment. We intend to automate this type of analysis in a future version of our software.
 
+--We have noticed that alignment errors at the ends of reads can result in false mutations. To eliminate these, we also hard-clip the first and last 5 nt of each read after alignment: seq_both_DCS_readgroups_clipped.bam
 
-Written for Python 2.7.3
-Required modules: Pysam, Samtools
+--text file listing overall mutation frequencies: these are the files having extension .pileup.countmuts
 
-This program is intended to be run on a paired-end BAM file, sorted by read position, with duplex tags in the header and constant read length.  It will output a paired-end BAM file with single strand consensus sequences (SSCSs), and a .tagcounts file which contains the different tags (on both strands) and how many times they occur, even if they are not used in SSCS generation, in order by read.  In addition, it will output a BAM file of SSCSs which are unpaired, either because one of the pair didn't match the criteria for allignment, or because of some other reason, and a BAM file of all unconsidered sequences in the original file.  Quality scores on the output BAM files are meaningless.  The file produced by this program is meant to continue on through the duplex maker.  
+--text file listing position-specific mutation frequencies: files having extension .pileup.mutpos
 
-The program starts at the position of the first good read, determined by the type of read specified on startup.  It then goes through the file until it finds a new position, saving all reads as it goes.  When it finds a new position, it sends the saved reads to the consensus maker, one tag at a time, untill it runs out of tags.  Consensus sequences are saved until their mates come up, at which point both are written to the output BAM file, first read first.  After emptying the reads from the first position, it continues on through the origional file until it finds another new position, sends those reads to the consensus maker, and so on until the end of the file.  At the end of the file, any remaining reads are sent through the consensus maker, and any unpaired consensuses are written to extraConsensus.bam.  
+***the mutpos file is tab-delimited. Output is: reference name, reference base, position number, depth, number of total mutations (excluding indels), number of mutations to T, C, G, A, insertions, deletions
 
-In the future, the program may be able to autodetect read length.  
+5. QUALITY CONTROL
 
-usage: ConsensusMaker2.2.py [-h] [--infile INFILE] [--tagfile TAGFILE]
-                            [--outfile OUTFILE] [--rep_filt REP_FILT]
-                            [--minmem MINMEM] [--maxmem MAXMEM]
-                            [--cutoff CUTOFF] [--Ncutoff NCUTOFF]
-                            [--readlength READ_LENGTH] [--read_type READ_TYPE]
+It is highly recommended to calculate read count statistics from each run for troubleshooting purposes. To do so, run the dcs-stats.txt script from the directory which contains your files:
 
-arguments:
-  -h, --help            show this help message and exit
-  --infile INFILE       input BAM file
-  --tagfile TAGFILE     output tagcounts file
-  --outfile OUTFILE     output BAM file
-  --rep_filt REP_FILT   Remove tags with homomeric runs of nucleotides of
-                        length x [9]
-  --minmem MINMEM       Minimum number of reads allowed to comprise a
-                        consensus. [0]
-  --maxmem MAXMEM       Maximum number of reads allowed to comprise a
-                        consensus. [100]
-  --cutoff CUTOFF       Percentage of nucleotides at a given position in a
-                        read that must be identical in order for a consensus
-                        to be called at that position. [0]
-  --Ncutoff NCUTOFF     Maximum percentage of Ns allowed in a consensus [1]
-  --readlength READ_LENGTH
-                        Length of the input read that is being used. [80]
-  --read_type READ_TYPE
-                        Type of read. 
-                        Options: 
-							dual_map: both reads map propperly.  Doesn't consider read pairs where only one read maps. 
-							mono_map: considers any read pair where one read maps. 
+dcs-stats.txt
 
+Note that this script is designed specifically for mitochondrial DNA data that was generated with the dcs-script-parallel.txt workflow.
 
-DuplexMaker2.2.py
+You will want to consider the following numbers. If you lose a lot of data at a single step, you can then troubleshoot that step. For example if you lose a lot of reads going from 'mapped' to 'SSCS', the DNA is probably over-duplicated. Consider re-prepping the DNA using a larger amount of input into the PCR.
 
-DCS Maker
-Version 2.2
-By Brendan Kohrn and Scott Kennedy(1)
-(1) Department of Pathology, University of Washington School of Medicine, Seattle, WA 98195	
-August 23, 2013	
+* total reads
+* reads passing filtering criteria (i.e. with a properly located spacer, and with no failed reads within the Duplex Tag sequence)
+* total mapped reads
+* reads mapped to the mitochondrial genome
+* SSCS reads
+* DCS reads
+* mapped reads to SSCS ratio
+* SSCS to DCS ratio
 
-Written for\ Python 2.7.3
-Required modules: Pysam, Samtools, BioPython
+6. DATA ANALYSIS
 
-This program is intended to be run on a paired-end BAM file, sorted by read position, which has already been through the consensus maker.  It alligns SSCS's to their switchtag, and outputs a paired-end BAM file containing Duplex Consensus Sequences (DCS's) and a BAM file containing unpaired duplex consensus sequences.  
+--The countmuts file can be read directly in a text viewer
 
-usage: DuplexMaker2.2.py [-h] [--infile INFILE] [--outfile OUTFILE]
-                         [--Ncutoff NCUTOFF] [--readlength READ_LENGTH]
-
-arguments:
-  -h, --help            show this help message and exit
-  --infile INFILE       input BAM file
-  --outfile OUTFILE     output BAM file
-  --Ncutoff NCUTOFF     Maximum percentage of Ns allowed in a consensus [1]
-  --readlength READ_LENGTH
-                        Length of the input read that is being used.  [80]
+--to plot mutation positions in R (with zeros removed):
+read.table("/path/seq_both_DCS.bam.pileup.mutpos") -> table
+mutcount <- replace(table$V5,table$V5==0, NA)
+plot(mutcount/table$V4)
