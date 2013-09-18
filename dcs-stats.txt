@@ -1,0 +1,35 @@
+#!/bin/bash
+
+#-----------------Sequencing stats for mitochondrial genome-------------------
+
+#Total raw unfiltered reads: only seq1.fq is counted. The script divides the count number by 2 to get the total number of reads (dividing by two because each read consists of 4 lines in fastq format, and there are two read files):
+
+rawread=$(cat seq1.fq | wc -l)
+rawreads=$((rawread/2))
+echo 'Raw reads:' $rawreads
+
+#Total reads with correctly located spacer:
+
+smiread=$(cat seq1.fq.smi | wc -l)
+smireads=$((smiread/2))
+echo 'Reads passing filtering criteria' $smireads
+
+#Total mapped reads:
+
+echo 'Total mapped reads (multiply the "mapped reads" value by two to account for the two read files at this step):'
+samtools flagstat seq1.fq.smi.aln1.sort.bam
+
+#Total Mito reads:
+
+echo 'Reads mapping to mitochondrial genome (multiply the "mapped reads" value by two to account for the two read files at this step):'
+samtools flagstat seq1.fq.smi.aln1.sort.filt.bam
+
+#Total SSCS reads:
+
+echo 'Total SSCS reads:'
+samtools flagstat seq_both_sscs.bam
+
+#Total DCS reads
+
+echo 'Total DCS reads:'
+samtools flagstat seq_both_dcs.bam

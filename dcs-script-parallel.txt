@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# assembled by Mike Schmitt, edited by Scott Kennedy Dec 20 2012
+# Version 1.21
+# This script processes the two files in parallel. It runs faster but requires twice as much RAM. Minimum 8 GB RAM recommended.
+
+#Run from the directory containing your read 1 and read 2 files. The files must be named seq1.fq and seq2.fq
+
+#Command line usage:
+#bash -x dcs-script.txt 2> dcs-script.se
+
+#----------------filter for reads with a properly located duplex tag, then move the tag into the header--------------
+
+python $DCSPATH/tag_to_header.py --infile1 seq1.fq --infile2 seq2.fq --outfile1 seq1.fq.smi --outfile2 seq2.fq.smi
+	
+#---------------process both files in parallel----------------------
+
+count=0
+for read in 1 2; do
+	bwa aln $REFPATH/human_g1k_v37.fasta seq${read}.fq.smi > seq${read}.fq.smi.aln1 &
+	let count+=1
+	[[ $((count%2)) -eq 0 ]] && wait
+
+done
+
+count=0
+for read in 1 2; do
+	bwa samse $REFPATH/human_g1k_v37.fasta seq${read}.fq.smi.aln1 seq${read}.fq.smi > seq${read}.fq.smi.aln1.sam &
+	let count+=1
+	[[ $((count%2)) -eq 0 ]] && wait
+done
+
+count=0
+for read in 1 2; do
+	samtools view -Sbu seq${read}.fq.smi.aln1.sam | samtools sort - seq${read}.fq.smi.aln1.sort &
+	let count+=1
+	[[ $((count%2)) -eq 0 ]] && wait
+done
+
+rm seq1.fq.smi.aln1.sam
+rm seq2.fq.smi.aln1.sam
+
+count=0
+for read in 1 2; do
+	samtools index seq${read}.fq.smi.aln1.sort.bam &
+	let count+=1
+	[[ $((count%2)) -eq 0 ]] && wait
+done
+
+count=0
+for read in 1 2; do
+	samtools view -F4 seq${read}.fq.smi.aln1.sort.bam MT |samtools view -Sb -T $REFPATH/human_g1k_v37.fasta - > seq${read}.fq.smi.aln1.sort.filt.bam &
+	let count+=1
+	[[ $((count%2)) -eq 0 ]] && wait
+done
+
+
+for read in 1 2; do
+	python $DCSPATH/consensusMaker.py --readlength 79 --infile seq${read}.fq.smi.aln1.sort.filt.bam --tagfile seq${read}.tagcounts --fastqfile seq${read}_sscs.fastq --minmem 3 --maxmem 1000 --cutoff .7 --readnum ${read} -p | bwa aln $REFPATH/MT2.fasta - > seq${read}_sscs.aln 
+done
+
+count=0
+for read in 1 2; do
+	bwa samse $REFPATH/MT2.fasta seq${read}_sscs.aln seq${read}_sscs.fastq > seq${read}_sscs.sam &
+	[[ $((count%2)) -eq 0 ]] && wait
+done
+
+count=0
+for read in 1 2; do
+	samtools view -Sbu seq${read}_sscs.sam | samtools sort - seq${read}_sscs.sort &
+	let count+=1
+	[[ $((count%2)) -eq 0 ]] && wait
+done
+
+#----------------merge the two files-----------------------
+
+samtools merge -f -h seq1_sscs.sam seq_both_sscs.bam seq1_sscs.sort.bam seq2_sscs.sort.bam
+
+samtools index seq_both_sscs.bam
+
+python $DCSPATH/DCSfilter.py --infile seq_both_sscs.bam --outfile seq_both_DCS.bam --index TATATA
+
+#----------------clipping final file---------------
+
+java -jar -Xmx2g ~/Bioinformatics/picard-tools-1/picard-tools-1.56/AddOrReplaceReadGroups.jar INPUT=seq_both_DCS.bam OUTPUT=seq_both_DCS_readgroups.bam RGLB=UW RGPL=Illumina RGPU=ATATAT RGSM=default
+
+java -jar -Xmx8g ~/Bioinformatics/GATK/GenomeAnalysisTK.jar -T ClipReads -I seq_both_DCS_readgroups.bam -o seq_both_DCS_readgroups_clipped.bam -R $REFPATH/MT2.fasta --cyclesToTrim "1-5,71-75" --clipRepresentation HARDCLIP_BASES --unsafe --fix_misencoded_quality_scores
+
+#----------------generating stats from final file---------------
+
+samtools mpileup -B -d 500000 -f $REFPATH/MT2.fasta seq_both_sscs.bam > seq_both_sscs.bam.pileup
+
+cat seq_both_sscs.bam.pileup | python $DCSPATH/count-muts.py > seq_both_sscs.bam.pileup.countmuts
+
+samtools mpileup -B -d 500000 -f $REFPATH/MT2.fasta seq_both_DCS_readgroups_clipped.bam > seq_both_DCS_readgroups_clipped.bam.pileup
+
+cat seq_both_DCS_readgroups_clipped.bam.pileup | python $DCSPATH/count-muts.py > seq_both_DCS_readgroups_clipped.bam.pileup.countmuts
+
+cat seq_both_DCS_readgroups_clipped.bam.pileup | python $DCSPATH/mut-position.py > seq_both_DCS_readgroups_clipped.bam.pileup.mutpos

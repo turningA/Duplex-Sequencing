@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# assembled by Mike Schmitt
+# Version 1.21
+# Feb 4, 2013
+
+#Run from the directory containing your read 1 and read 2 files. The files must be named seq1.fq and seq2.fq
+
+#Command line usage:
+#bash -x dcs-script.txt 2> dcs-script.se
+
+#----------------filter for reads with a properly located duplex tag, then move the tag into the header--------------
+
+python $DCSPATH/tag_to_header.py --adapter1 CAGT --adapter2 CAGT --infile1 seq1.fq --infile2 seq2.fq --outfile1 seq1.fq.smi --outfile2 seq2.fq.smi
+
+#---------------process read 1 file----------------------
+
+bwa aln $REFPATH/MT2.fasta seq1.fq.smi > seq1.fq.smi.aln1 2> seq1.fq.smi.aln1.se
+
+bwa samse $REFPATH/MT2.fasta seq1.fq.smi.aln1 seq1.fq.smi > seq1.fq.smi.aln1.sam
+
+samtools view -Sub seq1.fq.smi.aln1.sam | samtools sort - seq1.fq.smi.aln1.sort
+
+samtools index seq1.fq.smi.aln1.sort.bam
+
+samtools idxstats seq1.fq.smi.aln1.sort.bam
+
+python $DCSPATH/consensusMaker.py --readlength 80 --infile seq1.fq.smi.aln1.sort.bam --tagfile seq1.tagcounts --fastqfile seq1_sscs.fastq --minmem 3 --maxmem 1000 --cutoff .9 --readnum 1 -p | bwa aln $REFPATH/MT2.fasta - > seq1_sscs.aln
+
+bwa samse $REFPATH/MT2.fasta seq1_sscs.aln seq1_sscs.fastq > seq1_sscs.sam
+
+samtools view -Sbu seq1_sscs.sam | samtools sort - seq1_sscs.sort
+
+samtools index seq1_sscs.sort.bam
+
+#---------------process read 2 file----------------------
+
+bwa aln $REFPATH/MT2.fasta seq2.fq.smi > seq2.fq.smi.aln1 2> seq2.fq.smi.aln1.se
+
+bwa samse $REFPATH/MT2.fasta seq2.fq.smi.aln1 seq2.fq.smi > seq2.fq.smi.aln1.sam
+
+samtools view -Sbu seq2.fq.smi.aln1.sam | samtools sort - seq2.fq.smi.aln1.sort
+
+samtools index seq2.fq.smi.aln1.sort.bam
+
+samtools idxstats seq2.fq.smi.aln1.sort.bam
+
+python $DCSPATH/consensusMaker.py --readlength 80 --infile seq2.fq.smi.aln1.sort.bam --tagfile seq2.tagcounts --fastqfile seq2_sscs.fastq --minmem 3 --maxmem 1000 --cutoff .9 --readnum 2 -p | bwa aln $REFPATH/MT2.fasta - > seq2_sscs.aln
+
+bwa samse $REFPATH/MT2.fasta seq2_sscs.aln seq2_sscs.fastq > seq2_sscs.sam
+
+samtools view -Sbu seq2_sscs.sam | samtools sort - seq2_sscs.sort
+
+samtools index seq1_sscs.sort.bam
+
+#----------------merge the two files-----------------------
+
+samtools merge -h seq1_sscs.sam seq_both_sscs.bam seq1_sscs.sort.bam seq2_sscs.sort.bam
+
+samtools index seq_both_sscs.bam
+
+python $DCSPATH/DCSfilter.py --infile seq_both_sscs.bam --outfile seq_both_DCS.bam
+
+#----------------clipping final file---------------
+
+java -jar -Xmx2g ~/Desktop/bioinformatics/programs/picard-tools-1.70/AddOrReplaceReadGroups.jar INPUT=seq_both_DCS.bam OUTPUT=seq_both_DCS_readgroups.bam RGLB=UW RGPL=Illumina RGPU=ATATAT RGSM=default
+
+ java -jar -Xmx8g ~/Desktop/bioinformatics/programs/GATK/GenomeAnalysisTK.jar -T ClipReads -I seq_both_DCS_readgroups.bam -o seq_both_DCS_readgroups_clipped.bam -R $REFPATH/MT2.fasta --cyclesToTrim "1-5,71-75" --clipRepresentation HARDCLIP_BASES --fix_misencoded_quality_scores
+
+#----------------generating stats from final file---------------
+
+samtools mpileup -B -d 500000 -f $REFPATH/MT2/MT2.fasta seq_both_sscs.bam > seq_both_sscs.bam.pileup
+
+cat seq_both_sscs.bam.pileup | python $DCSPATH/count-muts.py > seq_both_sscs.bam.pileup.countmuts
+
+samtools mpileup -B -d 500000 -f $REFPATH/MT2/MT2.fasta seq_both_DCS_readgroups_clipped.bam > seq_both_DCS_readgroups_clipped.bam.pileup
+
+cat seq_both_DCS_readgroups_clipped.bam.pileup | python $DCSPATH/count-muts.py > seq_both_DCS_readgroups_clipped.bam.pileup.countmuts
+
+cat seq_both_DCS_readgroups_clipped.bam.pileup | python $DCSPATH/mut-position.py > seq_both_DCS_readgroups_clipped.bam.pileup.mutpos
