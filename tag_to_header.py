@@ -4,21 +4,20 @@ Tag To Header
 Version 2.0.2
 By Joe Hiatt, Scott Kennedy(1), Brendan Kohrn and Mike Schmitt(1)
 (1) Department of Pathology, University of Washington School of Medicine, Seattle, WA 98195
-August 13, 2014
+August 14, 2014
 
 Isolate duplex tags, move them from within the sequenced read to the header region, and remove the spacer region.  
 
 usage: tag_to_header.py [-h] [--infile1 INFILE1] [--infile2 INFILE2]
-                        [--outfile1 OUTFILE1] [--outfile2 OUTFILE2]
-                        [--barcode_length BLENGTH] [--spacer_length SLENGTH]
-                        [--read_out ROUT] [--adapter ADAPTERSEQ]
+                        [--outprefix OUTFILE]  [--barcode_length BLENGTH] 
+                        [--spacer_length SLENGTH] [--read_out ROUT] 
+                        [--adapter ADAPTERSEQ]  [--tagfile]
 
 optional arguments:
   -h, --help            show this help message and exit
   --infile1 INFILE1     First input raw fastq file.
   --infile2 INFILE2     Second input raw fastq file.
-  --outfile1 OUTFILE1   Output file for first fastq reads.
-  --outfile2 OUTFILE2   Output file for second fastq reads.
+  --outprefix OUTFILE   Output file prefix.  
   --barcode_length BLENGTH
                         Length of the duplex tag sequence. [12]
   --spacer_length SLENGTH
@@ -28,12 +27,15 @@ optional arguments:
   --adapter ADAPTERSEQ  Optional: Spacer sequence for filtering on the
                         presence of the spacer. This could be thrown off by
                         low quality scores.
+  --tagfile             Output tagcounts file
 
 '''
+
 
 import sys
 from argparse import ArgumentParser
 from Bio import SeqIO
+from collections import defaultdict
 
 
 class fastQRead:
@@ -144,20 +146,18 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('--infile1', dest = 'infile1', help = 'First input raw fastq file.  ', required=True)
     parser.add_argument('--infile2', dest = 'infile2', help = 'Second input raw fastq file.  ', required=True)
-    parser.add_argument('--outfile1', dest = 'outfile1', help = 'Output file for first fastq reads.  ', required=True)
-    parser.add_argument('--outfile2', dest = 'outfile2', help = 'Output file for second fastq reads.  ', required=True)
+    parser.add_argument('--outprefix', dest = 'outfile', help = 'Output file prefix.  ', required=True)
     parser.add_argument('--barcode_length', type = int, default = 12, dest = 'blength', help = 'Length of the duplex tag sequence. [12]')
     parser.add_argument('--spacer_length', type = int, default = 5, dest = 'slength', help = 'Length of the spacer sequences used. [5]')
     parser.add_argument('--read_out', type = int, default = 1000000, dest = 'rOut', help = 'How often you want to be told what the program is doing. [1000000]')
     parser.add_argument('--adapter',  default = None,  dest = 'adapterSeq', help = 'Optional: Spacer sequence for filtering on the presence of the spacer.  This could be thrown off by low quality scores.')
-    parser.add_argument("--tagfile",  action="store",  dest="tagfile", help="output tagcounts file", default=None)
+    parser.add_argument("--tagfile",  action="store_true",  dest="tagfile", help="Optional: Output tagcounts file")
     o=parser.parse_args()
-
 
     in1=fastQItterator(open(o.infile1, 'rU'))
     in2=fastQItterator(open(o.infile2, 'rU'))
-    out1=fastqWriter(open(o.outfile1, 'w'))
-    out2=fastqWriter(open(o.outfile2, 'w'))
+    out1=fastqWriter(open(o.outfile + ".seq1.fq.smi", 'w'))
+    out2=fastqWriter(open(o.outfile + ".seq2.fq.smi", 'w'))
 
     ctr=0
     nospacer = 0
@@ -165,7 +165,7 @@ def main():
     badtag = 0
     oldBad = 0
     isEOF=False
-    barcodeDict = {}
+    barcodeDict = defaultdict( lambda: 0 )
 
     while isEOF==False:
         read1 = in1.next()
@@ -193,13 +193,9 @@ def main():
                     out1.write(rOut1)
                     out2.write(rOut2)
                     goodreads += 1
-                    if o.tagfile != None:
-                        if tag1 + tag2 + "/1" in barcodeDict.keys():
-                            barcodeDict[tag1+tag2 + "/1"] += 1
-                            barcodeDict[tag1+tag2 + "/2"] += 1
-                        else:
-                            barcodeDict[tag1+tag2 + "/1"] = 1
-                            barcodeDict[tag1+tag2 + "/2"] = 1
+                    if o.tagfile:
+                            barcodeDict[tag1+tag2] += 1
+                            
                 else: 
                     badtag += 1
             if ctr%o.rOut==0:
@@ -223,11 +219,11 @@ def main():
     sys.stderr.write("Bad tags: %s\n\n" % (badtag))
     
     # Write the tag counts file.
-    if o.tagfile != None:
-        tagFile = open( o.tagfile, "w" )
-        tagFile.write ( "\n".join( [ "%s\t%d" % ( SMI, barcideDict[SMI] ) for SMI in sorted( barcideDict.keys(), key=lambda x: barcideDict[x], reverse=True ) ] ))
+    if o.tagfile:
+        tagFile = open( o.outfile + ".tagcounts", "w" )
+        tagFile.write ( "\n".join( [ "%s\t%d" % ( SMI, barcodeDict[SMI] ) for SMI in sorted( barcodeDict.keys(), key=lambda x: barcodeDict[x], reverse=True ) ] ))
         tagFile.close()
-        tagStats(o.tagfile)
+        tagStats(o.outfile + ".tagcounts")
 
 if __name__ == "__main__":
     main()
