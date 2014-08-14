@@ -1,6 +1,6 @@
 #!/bin/bash
 # DS bash script
-# Version 2.1
+# Version 2.1.01
 # 
 
 # Step 1: Setup variables for run:
@@ -84,7 +84,7 @@ echo "tag_to_header starting"  | tee -a ${logFile}
 date | tee -a ${logFile}
 echo "" | tee -a ${logFile}
 
-python ${DSpath}/tag_to_header.py --infile1 $read1in --infile2 $read2in --outfile1 ${runIdentifier}.seq1.fq.smi --outfile2 ${runIdentifier}.seq2.fq.smi --barcode_length $barcodeLength --spacer_length $spacerLength --read_out $readOut
+python ${DSpath}/tag_to_header.py --infile1 $read1in --infile2 $read2in --outprefix ${runIdentifier} --barcode_length $barcodeLength --spacer_length $spacerLength --read_out $readOut --tagfile
 
 # Step 3: Align sequences
 
@@ -105,7 +105,7 @@ samtools view -Sbu ${runIdentifier}.pe.sam | samtools sort - ${runIdentifier}.pe
 echo "Starting Consensus Maker" | tee -a ${logFile}
 date | tee -a ${logFile}
 
-python ${DSpath}/ConsensusMaker.py --infile ${runIdentifier}.pe.sort.bam --tagfile ${runIdentifier}.pe.tagcounts --outfile ${runIdentifier}.sscs.bam --minmem $minMem --maxmem $maxMem --readlength $readLength --cutoff $cutOff --Ncutoff $nCutOff --read_type $readTypes --filt $filtersSet --isize $iSize
+python ${DSpath}/ConsensusMaker.py --infile ${runIdentifier}.pe.sort.bam --outfile ${runIdentifier}.sscs.bam --minmem $minMem --maxmem $maxMem --readlength $readLength --cutoff $cutOff --Ncutoff $nCutOff --read_type $readTypes --filt $filtersSet --isize $iSize
 
 # Step 6: Sort SSCSs
 echo "Sorting SSCSs" | tee -a ${logFile}
