@@ -232,6 +232,7 @@ def main():
 
     bamEntry = inBam.fetch( until_eof = True ) # Initialize the iterator
     readWin = [bamEntry.next(), ''] # Get the first read
+    assert len(readWin[0].seq)==o.read_length, "Read length from file (%s) is not equal to read length provided (%s).  " % (len(readWin[0].seq), o.read_length)
     winPos = 0
 
     readDict = {} # Initialize the read dictionary
