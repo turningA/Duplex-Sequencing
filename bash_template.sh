@@ -36,6 +36,13 @@ readOut=1000000
 #NONDEFAULTS
 
 #FINAL_READ_LENGTH
+#Check the length against the length in a file
+testLength=`head -n 2 $read1in | tail -n 1 | wc -L`
+if (( $readLength != $testLength )); 
+then 
+    echo "Given read length ("$readLength") is not equal to read length in file ("$testLength").  "; 
+    exit 1; 
+fi
 readLength=$((readLength-barcodeLength-spacerLength))
 
 #LOG_FILE_NAME
