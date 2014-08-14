@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 '''
 Consensus Maker
-Version 2.0
+Version 2.0.1
 By Brendan Kohrn and Scott Kennedy(1)
 (1) Department of Pathology, University of Washington School of Medicine, Seattle, WA 98195
 Based on work by Scott Kennedy
-January 21, 2014
+August 13, 2014
 
 Written for Python 2.7.3
 Required modules: Pysam, Samtools
