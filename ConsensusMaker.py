@@ -175,9 +175,9 @@ def tagStats(tagCountsFile):
 def main():
     #Parameters to be input.
     parser=ArgumentParser()
-    parser.add_argument("--infile", action="store", dest="infile", help="input BAM file", required=True)
-    parser.add_argument("--tagfile",  action="store",  dest="tagfile", help="output tagcounts file",  default=None)
-    parser.add_argument("--outfile",  action="store", dest="outfile", help="output BAM file", required=True)
+    parser.add_argument("--infile", action="store", dest="infile", help="Path to input BAM file", required=True)
+    parser.add_argument("--tagfile",  action="store_true",  dest="tagfile", help="Output tagcounts file")
+    parser.add_argument("--outfile",  action="store", dest="outfile", help="Path to output BAM file", required=True)
     parser.add_argument("--rep_filt", action="store",  type=int, dest='rep_filt', help="Remove tags with homomeric runs of nucleotides of length x. [9]", default=9 )
     parser.add_argument('--minmem', type=int, default=3, dest='minmem', help="Minimum number of reads allowed to comprise a consensus. [3] ")
     parser.add_argument('--maxmem', type=int, default=1000, dest='maxmem', help="Maximum number of reads allowed to comprise a consensus. [1000]")
@@ -253,7 +253,8 @@ def main():
             
             try:
                 tag = readWin[winPos%2].qname.split('|')[1].split('/')[0] + (":1" if readWin[winPos%2].is_read1 == True else (":2" if readWin[winPos%2].is_read2 == True else ":se"))
-                tagDict[tag] += 1
+                if o.tagfile:
+	                tagDict[tag] += 1
             except:
                 print readNum
                 raise
@@ -419,11 +420,11 @@ def main():
     sys.stderr.write("Consensuses with Too Many Ns: %s\n\n" % nC)
 
     # Write the tag counts file.
-    if o.tagfile != None:
-        tagFile = open( o.tagfile, "w" )
+    if o.tagfile:
+        tagFile = open( o.outfile + ".tagcounts", "w" )
         tagFile.write ( "\n".join( [ "%s\t%d" % ( SMI, tagDict[SMI] ) for SMI in sorted( tagDict.keys(), key=lambda x: tagDict[x], reverse=True ) ] ))
         tagFile.close()
-        tagStats(o.tagfile)
+        tagStats(o.outfile + ".tagcounts")
 
 if __name__ == "__main__":
     main()
