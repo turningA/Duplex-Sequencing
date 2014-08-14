@@ -150,7 +150,7 @@ def main():
     parser.add_argument('--spacer_length', type = int, default = 5, dest = 'slength', help = 'Length of the spacer sequences used. [5]')
     parser.add_argument('--read_out', type = int, default = 1000000, dest = 'rOut', help = 'How often you want to be told what the program is doing. [1000000]')
     parser.add_argument('--adapter',  default = None,  dest = 'adapterSeq', help = 'Optional: Spacer sequence for filtering on the presence of the spacer.  This could be thrown off by low quality scores.')
-    parser.add_argument("--tagfile",  action="store",  dest="tagfile", help="output tagcounts file")
+    parser.add_argument("--tagfile",  action="store",  dest="tagfile", help="output tagcounts file", default=None)
     o=parser.parse_args()
 
 
@@ -165,6 +165,7 @@ def main():
     badtag = 0
     oldBad = 0
     isEOF=False
+    barcodeDict = {}
 
     while isEOF==False:
         read1 = in1.next()
@@ -192,12 +193,13 @@ def main():
                     out1.write(rOut1)
                     out2.write(rOut2)
                     goodreads += 1
-                    if tag1 + tag2 + "/1" in barcodeDict.keys():
-                        barcodeDict[tag1+tag2 + "/1"] += 1
-                        barcodeDict[tag1+tag2 + "/2"] += 1
-                    else:
-                        barcodeDict[tag1+tag2 + "/1"] = 1
-                        barcodeDict[tag1+tag2 + "/2"] = 1
+                    if o.tagfile != None:
+                        if tag1 + tag2 + "/1" in barcodeDict.keys():
+                            barcodeDict[tag1+tag2 + "/1"] += 1
+                            barcodeDict[tag1+tag2 + "/2"] += 1
+                        else:
+                            barcodeDict[tag1+tag2 + "/1"] = 1
+                            barcodeDict[tag1+tag2 + "/2"] = 1
                 else: 
                     badtag += 1
             if ctr%o.rOut==0:
@@ -221,10 +223,11 @@ def main():
     sys.stderr.write("Bad tags: %s\n\n" % (badtag))
     
     # Write the tag counts file.
-    tagFile = open( o.tagfile, "w" )
-    tagFile.write ( "\n".join( [ "%s\t%d" % ( SMI, barcideDict[SMI] ) for SMI in sorted( barcideDict.keys(), key=lambda x: barcideDict[x], reverse=True ) ] ))
-    tagFile.close()
-    tagStats(o.tagfile)
+    if o.tagfile != None:
+        tagFile = open( o.tagfile, "w" )
+        tagFile.write ( "\n".join( [ "%s\t%d" % ( SMI, barcideDict[SMI] ) for SMI in sorted( barcideDict.keys(), key=lambda x: barcideDict[x], reverse=True ) ] ))
+        tagFile.close()
+        tagStats(o.tagfile)
 
 if __name__ == "__main__":
     main()
