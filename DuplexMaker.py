@@ -90,6 +90,7 @@ def main():
 
     bamEntry = inBam.fetch( until_eof = True ) # Initialize the iterator
     firstRead = bamEntry.next() # Get the first read
+    assert len(firstRead.seq)==o.read_length, "Read length from file (%s) is not equal to read length provided (%s).  " % (len(firstRead.seq), o.read_length)
     readDict = {} # Initialize the read dictionary
     firstTag=firstRead.qname.split(":")[0]
     qualScore = firstRead.qual # Set a dummy quality score
