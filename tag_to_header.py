@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 '''
 Tag To Header
-Version 2.0.1
+Version 2.0.2
 By Joe Hiatt, Scott Kennedy(1), Brendan Kohrn and Mike Schmitt(1)
 (1) Department of Pathology, University of Washington School of Medicine, Seattle, WA 98195
-March 24, 2014
+August 13, 2014
 
 Isolate duplex tags, move them from within the sequenced read to the header region, and remove the spacer region.  
 
@@ -120,6 +120,26 @@ def hdrRenameFxn(x, y, z):
     '''
     return("%s|%s%s/%s" % (x.split("/")[0], y, z,  x.split("/")[1]))
 
+def tagStats(tagCountsFile):
+    familySizeCounts=defaultdict( lambda: 0 )
+
+    fIn = open(tagCountsFile, 'r')
+    fOut = open(tagCountsFile + '.tagstats', 'w')
+    for line in fIn:
+        familySizeCounts[int(line.strip().split()[1].split(":")[0])] += 1
+    fIn.close()
+    
+    totals = 0
+    for size in familySizeCounts.keys():
+        familySizeCounts[size] *= int(size)
+        totals += int(familySizeCounts[size])
+    
+    for size in sorted(familySizeCounts.keys()):
+        fOut.write("%s\t%s\n" % (size, float(familySizeCounts[size])/float(totals)))
+    
+    fOut.close()
+    return(True)
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--infile1', dest = 'infile1', help = 'First input raw fastq file.  ', required=True)
@@ -130,6 +150,7 @@ def main():
     parser.add_argument('--spacer_length', type = int, default = 5, dest = 'slength', help = 'Length of the spacer sequences used. [5]')
     parser.add_argument('--read_out', type = int, default = 1000000, dest = 'rOut', help = 'How often you want to be told what the program is doing. [1000000]')
     parser.add_argument('--adapter',  default = None,  dest = 'adapterSeq', help = 'Optional: Spacer sequence for filtering on the presence of the spacer.  This could be thrown off by low quality scores.')
+    parser.add_argument("--tagfile",  action="store",  dest="tagfile", help="output tagcounts file")
     o=parser.parse_args()
 
 
@@ -159,6 +180,7 @@ def main():
                 #extract tags
                 tag1, tag2 = tagExtractFxn((read1.seq, read2.seq),o.blength)
                 
+                
                 #header reconstruction
                 read1.name = hdrRenameFxn(read1.name, tag1, tag2) 
                 read2.name = hdrRenameFxn(read2.name, tag1, tag2)
@@ -170,6 +192,12 @@ def main():
                     out1.write(rOut1)
                     out2.write(rOut2)
                     goodreads += 1
+                    if tag1 + tag2 + "/1" in barcodeDict.keys():
+                        barcodeDict[tag1+tag2 + "/1"] += 1
+                        barcodeDict[tag1+tag2 + "/2"] += 1
+                    else:
+                        barcodeDict[tag1+tag2 + "/1"] = 1
+                        barcodeDict[tag1+tag2 + "/2"] = 1
                 else: 
                     badtag += 1
             if ctr%o.rOut==0:
@@ -191,6 +219,12 @@ def main():
     sys.stderr.write("Good sequences: %s\n" % (goodreads))
     sys.stderr.write("Missing spacers: %s\n" % (nospacer))
     sys.stderr.write("Bad tags: %s\n\n" % (badtag))
+    
+    # Write the tag counts file.
+    tagFile = open( o.tagfile, "w" )
+    tagFile.write ( "\n".join( [ "%s\t%d" % ( SMI, barcideDict[SMI] ) for SMI in sorted( barcideDict.keys(), key=lambda x: barcideDict[x], reverse=True ) ] ))
+    tagFile.close()
+    tagStats(o.tagfile)
 
 if __name__ == "__main__":
     main()
