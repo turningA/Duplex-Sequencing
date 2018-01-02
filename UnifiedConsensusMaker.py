@@ -31,11 +31,11 @@ def consensus_caller(input_reads, cutoff, tag, length_check):
 	nuc_key_dict = {0: 'T', 1: 'C', 2: 'G', 3: 'A', 4: 'N'}
 	consensus_seq = ''
 
-	if length_check is True:
+	'''if length_check is True:
 
 		for read in input_reads[1:]:
 			if len(read) != len(input_reads[0]):
-				raise Exception("Read lengths for tag %s used for calculating the SSCS are not uniform!!!" % tag)
+				raise Exception("Read lengths for tag %s used for calculating the SSCS are not uniform!!!" % tag)'''
 
 	for i in xrange(len(input_reads[0])):  # Count the types of nucleotides at a position in a read.
 									# i is the nucleotide index within a read in groupedReadsList

@@ -14,7 +14,7 @@ set -o pipefail
 # Throw an error on calling an unassigned variable
 #set -u
 #decide which python version to use
-#. $HOME/pyEnv/py2/bin/activate
+#source $HOME/pyEnv/py2/bin/activate
 
 ##########
 # Config #
@@ -202,7 +202,7 @@ fi
 	bwa aln -t ${CPU} $alignRef $xumi_seq1 > ${filePrefix}.seq1.aln && \
 	bwa aln -t ${CPU} $alignRef $xumi_seq2 > ${filePrefix}.seq2.aln && \
 	bwa sampe -s $alignRef ${filePrefix}.seq1.aln ${filePrefix}.seq2.aln $xumi_seq1 $xumi_seq2 > ${filePrefix}.pe.sam && \
-	samtools view -Sbu ${filePrefix}.pe.sam | samtools sort - -o ${filePrefix}.pe.sort && \
+	samtools view -Sbu ${filePrefix}.pe.sam | samtools sort - -o ${filePrefix}.pe.sort.bam && \
 touch .${JOBUID}.status.${STEP}.bwaAlignment
 [ ! -f .${JOBUID}.status.${STEP}.bwaAlignment ] && echo2 "run 1st bwa alignment failed" "error"
 STEP=$((STEP+1))
@@ -212,7 +212,7 @@ echo "Starting Consensus Maker" | tee -a ${logFile}
 date | tee -a ${logFile}
 [ ! -f .${JOBUID}.status.${STEP}.consensusMaker ] && \
 	python ${DSpath}/ConsensusMaker.py --infile ${filePrefix}.pe.sort.bam --tag_file ${filePrefix}.pe.tagcounts --tag_stats ${filePrefix}.pe.tagstats  --outfile ${filePrefix}.sscs.bam --minmem $minMem --maxmem $maxMem --read_length $readLength --cut_off $cutOff --Ncut_off $nCutOff --read_type $readTypes --filt $filtersSet --isize $iSize && \
-	samtools view -bu ${filePrefix}.sscs.bam | samtools sort - ${filePrefix}.sscs.sort && \
+	samtools view -bu ${filePrefix}.sscs.bam | samtools sort - -o ${filePrefix}.sscs.sort.bam && \
 touch .${JOBUID}.status.${STEP}.consensusMaker ]
 [ ! -f .${JOBUID}.status.${STEP}.consensusMaker ] && echo2 "consensus making failed" "error"
 STEP=$((STEP+1))
@@ -233,14 +233,14 @@ date | tee -a ${logFile}
 	bwa aln -t ${CPU}  $alignRef ${filePrefix}.dcs.r1.fq > ${filePrefix}.dcs.r1.aln && \
 	bwa aln -t ${CPU} $alignRef ${filePrefix}.dcs.r2.fq > ${filePrefix}.dcs.r2.aln && \
 	bwa sampe -s $alignRef ${filePrefix}.dcs.r1.aln ${filePrefix}.dcs.r2.aln ${filePrefix}.dcs.r1.fq ${filePrefix}.dcs.r2.fq > ${filePrefix}.dcs.sam && \
-	samtools view -Sbu ${filePrefix}.dcs.sam | samtools sort - -o ${filePrefix}.dcs.aln.sort && \
+	samtools view -Sbu ${filePrefix}.dcs.sam | samtools sort - -o ${filePrefix}.dcs.aln.sort.bam && \
 	samtools index ${filePrefix}.dcs.aln.sort.bam && \
 touch .${JOBUID}.status.${STEP}.duplexbwaAlignment ]
 [ ! -f .${JOBUID}.status.${STEP}.duplexbwaAlignment ] && echo2 "duplex consensus alignment failed" "error"
 STEP=$((STEP+1))
 
 # Step 11: Clean up
-echo "Finishing with run.. " $filePrefix | tee -a ${logFile}
-echo "Cleaning.." | tee -a ${logFile}
-date | tee -a ${logFile} 
-python ${DSpath}/clean.py --scripts_folder $(pwd) --output_folder ${output_folder} 
+# echo "Finishing with run.. " $filePrefix | tee -a ${logFile}
+# echo "Cleaning.." | tee -a ${logFile}
+# date | tee -a ${logFile}
+# python ${DSpath}/clean.py --scripts_folder $(pwd) --output_folder ${output_folder}
